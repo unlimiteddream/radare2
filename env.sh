@@ -1,5 +1,6 @@
 #!/bin/sh
 
+
 getabsolutepath() {
 	[ -d "$1" ] && { cd "$1"; echo "$(pwd -P)"; } ||
 	{ cd "$(dirname "$1")"; echo "$(pwd -P)/$(basename "$1")"; }
