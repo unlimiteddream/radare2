@@ -710,6 +710,7 @@ R_API int r_io_bind(RIO* io, RIOBind* bnd) {
 	bnd->sections_vget = r_io_sections_vget;
 	bnd->section_add = r_io_section_add;
 	bnd->sect_vget = r_io_section_vget;
+	bnd->ptrace = r_io_ptrace;
 	return true;
 }
 
@@ -769,6 +770,34 @@ R_API ut64 r_io_seek(RIO* io, ut64 offset, int whence) {
 	return io->off;
 }
 
+
+#ifdef R_IO_USE_PTRACE_WRAP
+#include <ptrace_wrap.h>
+#include <errno.h>
+#endif
+
+R_API long r_io_ptrace(RIO *io, enum __ptrace_request request, pid_t pid, void *addr, void *data) {
+#ifdef R_IO_USE_PTRACE_WRAP
+	if (!io->ptrace_wrap) {
+		io->ptrace_wrap = R_NEW (ptrace_wrap_instance);
+		if (!io->ptrace_wrap) {
+			errno = 0;
+			return -1;
+		}
+		if (ptrace_wrap_instance_start (io->ptrace_wrap) < 0) {
+			free (io->ptrace_wrap);
+			io->ptrace_wrap = NULL;
+			errno = 0;
+			return -1;
+		}
+	}
+	return ptrace_wrap (io->ptrace_wrap, request, pid, addr, data);
+#else
+	return ptrace (request, pid, addr, data);
+#endif
+}
+
+
 //remove all descs and maps
 R_API int r_io_fini(RIO* io) {
 	if (!io) {
@@ -784,5 +813,11 @@ R_API int r_io_fini(RIO* io) {
 	if (io->runprofile) {
 		R_FREE (io->runprofile);
 	}
+#ifdef R_IO_USE_PTRACE_WRAP
+	if (io->ptrace_wrap) {
+		ptrace_wrap_instance_stop (io->ptrace_wrap);
+		free (io->ptrace_wrap);
+	}
+#endif
 	return true;
 }

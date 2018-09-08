@@ -59,7 +59,7 @@ static int linux_stop_process(int pid);
 
 int linux_handle_signals (RDebug *dbg) {
 	siginfo_t siginfo = {0};
-	int ret = ptrace (PTRACE_GETSIGINFO, dbg->pid, 0, &siginfo);
+	int ret = _ptrace (dbg, PTRACE_GETSIGINFO, dbg->pid, 0, &siginfo);
 	if (ret == -1) {
 		/* ESRCH means the process already went away :-/ */
 		if (errno == ESRCH) {
@@ -169,7 +169,7 @@ RDebugReasonType linux_ptrace_event (RDebug *dbg, int pid, int status) {
 		break;
 	case PTRACE_EVENT_CLONE:
 		if (dbg->trace_clone) {
-			if (ptrace (PTRACE_GETEVENTMSG, pid, 0, &data) == -1) {
+			if (_ptrace (dbg, PTRACE_GETEVENTMSG, pid, 0, &data) == -1) {
 				r_sys_perror ("ptrace GETEVENTMSG");
 				return R_DEBUG_REASON_ERROR;
 			}
@@ -180,7 +180,7 @@ RDebugReasonType linux_ptrace_event (RDebug *dbg, int pid, int status) {
 		break;
 	case PTRACE_EVENT_FORK:
 		if (dbg->trace_forks) {
-			if (ptrace (PTRACE_GETEVENTMSG, pid, 0, &data) == -1) {
+			if (_ptrace (dbg, PTRACE_GETEVENTMSG, pid, 0, &data) == -1) {
 				r_sys_perror ("ptrace GETEVENTMSG");
 				return R_DEBUG_REASON_ERROR;
 			}
@@ -193,7 +193,7 @@ RDebugReasonType linux_ptrace_event (RDebug *dbg, int pid, int status) {
 		}
 		break;
 	case PTRACE_EVENT_EXIT:
-		if (ptrace (PTRACE_GETEVENTMSG, pid, 0, &data) == -1) {
+		if (_ptrace (dbg, PTRACE_GETEVENTMSG, pid, 0, &data) == -1) {
 			r_sys_perror ("ptrace GETEVENTMSG");
 			return R_DEBUG_REASON_ERROR;
 		}
@@ -210,7 +210,7 @@ RDebugReasonType linux_ptrace_event (RDebug *dbg, int pid, int status) {
 int linux_step(RDebug *dbg) {
 	int ret = false;
 	ut64 addr = r_debug_reg_get (dbg, "PC");
-	ret = ptrace (PTRACE_SINGLESTEP, dbg->pid, (void*)(size_t)addr, 0);
+	ret = _ptrace (dbg, PTRACE_SINGLESTEP, dbg->pid, (void*)(size_t)addr, 0);
 	//XXX(jjd): why?? //linux_handle_signals (dbg);
 	if (ret == -1) {
 		perror ("native-singlestep");
@@ -239,7 +239,7 @@ bool linux_set_options(RDebug *dbg, int pid) {
 	}
 	/* SIGTRAP | 0x80 on signal handler .. not supported on all archs */
 	traceflags |= PTRACE_O_TRACESYSGOOD;
-	if (ptrace (PTRACE_SETOPTIONS, pid, 0, traceflags) == -1) {
+	if (_ptrace (dbg, PTRACE_SETOPTIONS, pid, 0, traceflags) == -1) {
 		return false;
 	}
 	return true;
@@ -252,7 +252,7 @@ static void linux_detach_all (RDebug *dbg) {
 		RListIter *it;
 		r_list_foreach (th_list, it, th) {
 			if (th->pid != dbg->main_pid) {
-				if (ptrace (PTRACE_DETACH, th->pid, NULL, NULL) == -1) {
+				if (_ptrace (dbg, PTRACE_DETACH, th->pid, NULL, NULL) == -1) {
 					perror ("PTRACE_DETACH");
 				}
 			}
@@ -260,7 +260,7 @@ static void linux_detach_all (RDebug *dbg) {
 	}
 
 	// Detaching from main proc
-	if (ptrace (PTRACE_DETACH, dbg->main_pid, NULL, NULL) == -1) {
+	if (_ptrace (dbg, PTRACE_DETACH, dbg->main_pid, NULL, NULL) == -1) {
 		perror ("PTRACE_DETACH");
 	}
 }
@@ -316,7 +316,7 @@ repeat:
 			reason = linux_ptrace_event (dbg, pid, status);
 
 			if (reason == R_DEBUG_REASON_EXIT_TID) {
-				ptrace (PTRACE_CONT, pid, NULL, 0);
+				_ptrace (dbg, PTRACE_CONT, pid, NULL, 0);
 				goto repeat;
 			}
 
@@ -406,7 +406,7 @@ static int linux_stop_process(int pid) {
 static int linux_attach_single_pid(RDebug *dbg, int ptid) {
 	int ret = 0;
 	linux_set_options (dbg, ptid);
-	ret = ptrace (PTRACE_ATTACH, ptid, NULL, NULL);
+	ret = _ptrace (dbg, PTRACE_ATTACH, ptid, NULL, NULL);
 	return ret;
 }
 
@@ -781,7 +781,7 @@ int linux_reg_read (RDebug *dbg, int type, ut8 *buf, int size) {
 		int i;
 		for (i = 0; i < 8; i++) { //DR0-DR7
 			if (i == 4 || i == 5) continue;
-			long ret = ptrace (PTRACE_PEEKUSER, pid,
+			long ret = _ptrace (dbg, PTRACE_PEEKUSER, pid,
 					r_offsetof (struct user, u_debugreg[i]), 0);
 			if ((i+1) * sizeof (ret) > size) {
 				eprintf ("linux_reg_get: Buffer too small %d\n", size);
@@ -810,7 +810,7 @@ int linux_reg_read (RDebug *dbg, int type, ut8 *buf, int size) {
 		if (type == R_REG_TYPE_FPU) {
 #if __x86_64__
 #if !__ANDROID__
-			ret1 = ptrace (PTRACE_GETFPREGS, pid, NULL, &fpregs);
+			ret1 = _ptrace (dbg, PTRACE_GETFPREGS, pid, NULL, &fpregs);
 			if (showfpu) print_fpu ((void *)&fpregs, 0);
 			if (ret1 != 0) return false;
 			if (sizeof(fpregs) < size) size = sizeof(fpregs);
@@ -875,7 +875,7 @@ int linux_reg_read (RDebug *dbg, int type, ut8 *buf, int size) {
 			ret = ptrace (PTRACE_GETREGS, pid, &regs, NULL);
 #else
 			/* linux -{arm/x86/x86_64} */
-			ret = ptrace (PTRACE_GETREGS, pid, NULL, &regs);
+			ret = _ptrace (dbg, PTRACE_GETREGS, pid, NULL, &regs);
 #endif
 			/*
 			 * if perror here says 'no such process' and the
@@ -901,7 +901,7 @@ int linux_reg_write (RDebug *dbg, int type, const ut8 *buf, int size) {
 		long *val = (long*)buf;
 		for (i = 0; i < 8; i++) { // DR0-DR7
 			if (i == 4 || i == 5) continue;
-			if (ptrace (PTRACE_POKEUSER, dbg->pid, r_offsetof (
+			if (_ptrace (dbg, PTRACE_POKEUSER, dbg->pid, r_offsetof (
 					struct user, u_debugreg[i]), val[i])) {
 				eprintf ("ptrace error for dr %d\n", i);
 				r_sys_perror ("ptrace POKEUSER");
@@ -922,7 +922,7 @@ int linux_reg_write (RDebug *dbg, int type, const ut8 *buf, int size) {
 #elif __POWERPC__ || __sparc__
 		int ret = ptrace (PTRACE_SETREGS, dbg->pid, buf, NULL);
 #else
-		int ret = ptrace (PTRACE_SETREGS, dbg->pid, 0, (void*)buf);
+		int ret = _ptrace (dbg, PTRACE_SETREGS, dbg->pid, 0, (void*)buf);
 #endif
 #if DEAD_CODE
 		if (size > sizeof (R_DEBUG_REG_T)) {

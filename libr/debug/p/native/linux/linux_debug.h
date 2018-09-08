@@ -8,6 +8,20 @@
 
 #include <limits.h>
 #include <sys/ptrace.h>
+#include <ptrace_wrap.h>
+
+
+typedef struct {
+	ptrace_wrap_instance wrap;
+	int pid;
+	int tid;
+	int fd;
+	int opid;
+} RIOPtrace_;
+
+static long _ptrace(RDebug *dbg, enum __ptrace_request request, pid_t pid, void *addr, void *data) {
+	return dbg->iob.ptrace(dbg->iob.io, request, pid, addr, data);
+}
 
 struct user_regs_struct_x86_64 {
   ut64 r15; ut64 r14; ut64 r13; ut64 r12; ut64 rbp; ut64 rbx; ut64 r11;

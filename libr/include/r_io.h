@@ -3,6 +3,8 @@
 #ifndef R2_IO_H
 #define R2_IO_H
 
+#define R_IO_USE_PTRACE_WRAP
+
 #include "r_list.h"
 #include <r_util/r_idpool.h>
 #include <r_util/r_cache.h>
@@ -10,6 +12,8 @@
 #include "r_socket.h"
 #include "r_util.h"
 #include "r_vector.h"
+
+#include <sys/ptrace.h> // TODO: remove
 
 #define R_IO_READ	4
 #define R_IO_WRITE	2
@@ -88,6 +92,9 @@ typedef struct r_io_t {
 	RIOUndo undo;
 	SdbList *plugins;
 	char *runprofile;
+#ifdef R_IO_USE_PTRACE_WRAP
+	struct ptrace_wrap_instance_t *ptrace_wrap;
+#endif
 	char *args;
 	void *user;
 	void (*cb_printf)(const char *str, ...);
@@ -261,6 +268,7 @@ typedef bool (*RIOAddrIsMapped) (RIO *io, ut64 addr);
 typedef SdbList *(*RIOSectionVgetSecsAt) (RIO *io, ut64 vaddr);
 typedef RIOSection *(*RIOSectionVgetSec) (RIO *io, ut64 vaddr);
 typedef RIOSection *(*RIOSectionAdd) (RIO *io, ut64 addr, ut64 vaddr, ut64 size, ut64 vsize, int rwx, const char *name, ut32 bin_id, int fd);
+typedef long (*RIOPtraceFn) (RIO *io, enum __ptrace_request request, pid_t pid, void *addr, void *data);
 
 typedef struct r_io_bind_t {
 	int init;
@@ -295,6 +303,7 @@ typedef struct r_io_bind_t {
 	RIOSectionVgetSecsAt sections_vget;
 	RIOSectionVgetSec sect_vget;
 	RIOSectionAdd section_add;
+	RIOPtraceFn ptrace;
 } RIOBind;
 
 //map.c
@@ -511,6 +520,8 @@ R_API void r_io_accesslog_sort (RIOAccessLog *log);
 R_API void r_io_accesslog_sqash_ignore_gaps (RIOAccessLog *log);
 R_API void r_io_accesslog_sqash_byflags (RIOAccessLog *log, int flags);
 R_API ut8 *r_io_accesslog_getf_buf_byflags (RIOAccessLog *log, int flags, ut64 *addr, int *len);
+
+R_API long r_io_ptrace(RIO *io, enum __ptrace_request request, pid_t pid, void *addr, void *data);
 
 extern RIOPlugin r_io_plugin_procpid;
 extern RIOPlugin r_io_plugin_malloc;
