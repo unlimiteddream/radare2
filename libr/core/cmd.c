@@ -1882,7 +1882,8 @@ static char *parse_tmp_evals(RCore *core, const char *str) {
 
 static int r_core_cmd_subst_i(RCore *core, char *cmd, char* colon, bool *tmpseek);
 static int r_core_cmd_subst(RCore *core, char *cmd) {
-	int ret = 0, rep = atoi (cmd), orep;
+	int irep = atoi (cmd);
+	int ret = 0, orep;
 	char *cmt, *colon = NULL, *icmd = strdup (cmd);
 	const char *cmdrep = NULL;
 	bool tmpseek = false;
@@ -1890,6 +1891,10 @@ static int r_core_cmd_subst(RCore *core, char *cmd) {
 	/* must store a local orig_offset because there can be
 	 * nested call of this function */
 	ut64 orig_offset = core->offset;
+	ut64 rep = 0;
+	if (irep > 0) {
+		rep = r_num_math (NULL, cmd);
+	}
 
 	if (core->max_cmd_depth - core->cmd_depth == 1) {
 		core->prompt_offset = core->offset;
@@ -1938,7 +1943,7 @@ static int r_core_cmd_subst(RCore *core, char *cmd) {
 	} else {
 		if (rep > INTERACTIVE_MAX_REP) {
 			if (r_config_get_i (core->config, "scr.interactive")) {
-				if (!r_cons_yesno ('n', "Are you sure to repeat this %d times? (y/N)", rep)) {
+				if (!r_cons_yesno ('n', "Are you sure to repeat this %"PFMT64d" times? (y/N)", rep)) {
 					goto beach;
 				}
 			}
